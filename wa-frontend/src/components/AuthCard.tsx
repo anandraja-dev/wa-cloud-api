@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import loginData from "../login-data.json"
+import { apiService, type LoginRequest, type RegisterRequest } from "@/services/api"
 
 interface AuthCardProps {
   onLoginSuccess: () => void;
@@ -20,25 +20,77 @@ interface AuthCardProps {
 
 export function AuthCard({ onLoginSuccess }: AuthCardProps) {
   const [tab, setTab] = useState("login")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
+  // Login form state
+  const [loginData, setLoginData] = useState<LoginRequest>({
+    email: "",
+    password: ""
+  })
+
+  // Register form state
+  const [registerData, setRegisterData] = useState<RegisterRequest>({
+    name: "",
+    email: "",
+    password: ""
+  })
+  const [confirmPassword, setConfirmPassword] = useState("")
+
+  // Load demo credentials when switching to login tab
   useEffect(() => {
     if (tab === "login") {
-      setEmail(loginData.email);
-      setPassword(loginData.password);
+      setLoginData({
+        email: "demo@metazapp.com",
+        password: "password"
+      });
     }
+    setError("");
   }, [tab]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await apiService.login(loginData);
+      if (response.success) {
+        onLoginSuccess();
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (email === loginData.email && password === loginData.password) {
-      onLoginSuccess();
-    } else {
-      setError("Invalid email or password.");
+    // Validate password confirmation
+    if (registerData.password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (registerData.password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await apiService.register(registerData);
+      if (response.success) {
+        onLoginSuccess();
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Registration failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -72,33 +124,35 @@ export function AuthCard({ onLoginSuccess }: AuthCardProps) {
               <form onSubmit={handleLogin}>
                 <div className="flex flex-col gap-6">
                   <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="login-email">Email</Label>
                     <Input
-                      id="email"
+                      id="login-email"
                       type="email"
                       placeholder="m@example.com"
                       required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      value={loginData.email}
+                      onChange={(e) => setLoginData(prev => ({ ...prev, email: e.target.value }))}
+                      disabled={loading}
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="login-password">Password</Label>
                     <Input
-                      id="password"
+                      id="login-password"
                       type="password"
                       required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      value={loginData.password}
+                      onChange={(e) => setLoginData(prev => ({ ...prev, password: e.target.value }))}
+                      disabled={loading}
                     />
                   </div>
                   {error && <p className="text-red-500 text-sm">{error}</p>}
                 </div>
                 <CardFooter className="flex-col gap-2 mt-6">
-                  <Button type="submit" className="w-full">
-                    Login
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Logging in..." : "Login"}
                   </Button>
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full" disabled>
                     Login with Google
                   </Button>
                 </CardFooter>
@@ -117,37 +171,68 @@ export function AuthCard({ onLoginSuccess }: AuthCardProps) {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form>
+              <form onSubmit={handleRegister}>
                 <div className="flex flex-col gap-6">
                   <div className="grid gap-2">
-                    <Label htmlFor="name">Name</Label>
-                    <Input id="name" type="text" placeholder="John Doe" required />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="m@example.com"
+                    <Label htmlFor="register-name">Name</Label>
+                    <Input 
+                      id="register-name" 
+                      type="text" 
+                      placeholder="John Doe" 
                       required
+                      value={registerData.name}
+                      onChange={(e) => setRegisterData(prev => ({ ...prev, name: e.target.value }))}
+                      disabled={loading}
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input id="password" type="password" required />
+                    <Label htmlFor="register-email">Email</Label>
+                    <Input
+                      id="register-email"
+                      type="email"
+                      placeholder="m@example.com"
+                      required
+                      value={registerData.email}
+                      onChange={(e) => setRegisterData(prev => ({ ...prev, email: e.target.value }))}
+                      disabled={loading}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="register-password">Password</Label>
+                    <Input 
+                      id="register-password" 
+                      type="password" 
+                      required
+                      value={registerData.password}
+                      onChange={(e) => setRegisterData(prev => ({ ...prev, password: e.target.value }))}
+                      disabled={loading}
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="confirm-password">Confirm Password</Label>
-                    <Input id="confirm-password" type="password" required />
+                    <Input 
+                      id="confirm-password" 
+                      type="password" 
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      disabled={loading}
+                    />
                   </div>
+                  {error && <p className="text-red-500 text-sm">{error}</p>}
                 </div>
               </form>
             </CardContent>
             <CardFooter className="flex-col gap-2">
-              <Button type="submit" className="w-full">
-                Register
+              <Button 
+                type="submit" 
+                className="w-full" 
+                onClick={handleRegister}
+                disabled={loading}
+              >
+                {loading ? "Registering..." : "Register"}
               </Button>
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" disabled>
                 Register with Google
               </Button>
             </CardFooter>
